@@ -1,0 +1,7 @@
+{
+  "name": "FoodMenu Shot Studio",
+  "description": "Profesjonalny system SaaS dla gastronomii do generowania spójnych zdjęć produktowych (Menu/Sklep) oraz grafik Social Media z wykorzystaniem AI.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
