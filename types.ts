@@ -1,6 +1,7 @@
 
 export enum AppMode {
   LANDING = 'LANDING',
+  LOGIN = 'LOGIN',
   DASHBOARD = 'DASHBOARD',
   STUDIO = 'STUDIO',
   TEMPLATES = 'TEMPLATES',
@@ -29,6 +30,14 @@ export enum AspectRatio {
   CINEMA_16_9 = '16:9'
 }
 
+export interface User {
+  id: string;
+  email: string;
+  companyName: string;
+  plan: 'starter' | 'pro' | 'agency';
+  generationsCount: number;
+}
+
 export interface ParsedDish {
   id: string;
   name: string;
@@ -40,16 +49,16 @@ export interface StyleTemplate {
   id: string;
   name: string;
   backgroundId: string;
-  lighting: 'SOFT' | 'NEUTRAL' | 'WARM';
-  props: string[];
-  composition: 'CENTER' | 'RULE_OF_THIRDS';
+  lightingStyle: string;
+  focusStyle: string;
+  angle: PhotoAngle;
+  aspectRatio: AspectRatio;
 }
 
-export interface Dish {
+export interface SavedGeneration {
   id: string;
-  name: string;
-  category: string;
-  price?: number;
-  originalImage?: string;
-  generatedImages: string[];
+  dishName: string;
+  imageUrl: string;
+  mode: GenerationMode;
+  createdAt: number;
 }
