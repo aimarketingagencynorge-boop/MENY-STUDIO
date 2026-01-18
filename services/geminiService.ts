@@ -2,34 +2,38 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedDish } from "../types";
 
 /**
- * Inicjalizuje klienta Google GenAI.
- * Klucz API jest pobierany bezpośrednio z process.env.API_KEY.
+ * Zwraca klucz API ze zmiennych środowiskowych.
+ * Zakładamy, że process.env.API_KEY jest dostępny w oknie przeglądarki.
  */
-const getAiClient = () => {
+const getApiKey = () => {
   const apiKey = process.env.API_KEY?.trim();
-  if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    console.error("BŁĄD KONFIGURACJI: process.env.API_KEY nie został znaleziony.");
-    throw new Error("Brak klucza API. Dodaj 'API_KEY' w Vercel Environment Variables i zrób REDEPLOY aplikacji.");
+  if (!apiKey || apiKey === "undefined") {
+    console.error("BŁĄD KRYTYCZNY: Klucz API_KEY nie jest dostępny w process.env. Sprawdź Vercel Environment Variables.");
+    return null;
   }
-  return new GoogleGenAI({ apiKey });
+  return apiKey;
 };
 
 export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error("Klucz API nie został skonfigurowany. Dodaj API_KEY w Vercel i wykonaj REDEPLOY.");
+  }
+
+  // Tworzymy nową instancję bezpośrednio przed wywołaniem
+  const ai = new GoogleGenAI({ apiKey });
+  
   try {
-    const ai = getAiClient();
-    console.log("Gemini: Rozpoczynam analizę menu...");
+    console.log("Gemini: Rozpoczynam analizę menu (Model: gemini-3-flash-preview)...");
     
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Jesteś profesjonalnym analitykiem menu restauracyjnych. 
-      Przeanalizuj poniższy tekst i wyodrębnij z niego listę wszystkich dań. 
-      Zwróć wynik jako tablicę obiektów JSON z polami: 
-      - id (unikalny ciąg znaków)
-      - name (nazwa dania)
-      - description (krótki opis/składniki)
-      - price (cena z tekstu)
+      Wyodrębnij potrawy z poniższego tekstu. 
+      Zwróć wynik jako czysty JSON (tablica obiektów). 
+      Pola: id (string), name (string), description (string), price (string).
       
-      Tekst do analizy:
+      TEKST MENU DO ANALIZY:
       ${text}`,
       config: {
         responseMimeType: "application/json",
@@ -49,19 +53,16 @@ export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
       }
     });
     
-    if (!response.text) {
-      throw new Error("Model nie zwrócił żadnego tekstu.");
-    }
-
-    const parsed = JSON.parse(response.text.trim());
-    console.log(`Gemini: Wykryto ${parsed.length} dań.`);
-    return parsed;
-  } catch (error: any) {
-    console.error("Szczegóły błędu parseMenuText:", error);
+    const resultText = response.text;
+    if (!resultText) throw new Error("Pusta odpowiedź z serwera AI.");
     
-    // Obsługa błędów uprawnień/klucza
-    if (error.message?.includes("API_KEY") || error.status === 403) {
-      throw new Error("Problem z kluczem API. Upewnij się, że klucz jest poprawny i projekt w Google Cloud ma włączone Gemini API.");
+    return JSON.parse(resultText.trim());
+  } catch (error: any) {
+    console.error("SZCZEGÓŁY BŁĘDU GEMINI:", error);
+    
+    // Obsługa błędu 403/401
+    if (error.status === 403 || error.status === 401 || error.message?.includes("API key")) {
+      throw new Error(`Błąd klucza (403): Klucz jest nieprawidłowy, nieaktywny lub model gemini-3-flash-preview nie jest dostępny dla Twojego konta. Sprawdź ustawienia w Google AI Studio.`);
     }
     
     throw new Error(`Błąd analizy menu: ${error.message || "Błąd połączenia"}`);
@@ -84,15 +85,30 @@ export const generateFoodImage = async (
     focusStyle?: string;
   }
 ): Promise<string | null> => {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  const ai = new GoogleGenAI({ apiKey });
+  
   try {
-    const ai = getAiClient();
     const parts: any[] = [];
     
-    let textConstraint = config.mode === 'MENU' 
-      ? "Clean food photography, NO TEXT, NO LABELS, NO WATERMARKS." 
-      : `Professional ad photography. You can include stylish text: ${config.dishName || ''}.`;
+    // Budowanie promptu wizualnego
+    let visualPrompt = base64Image 
+      ? `Studio professional transformation of this food photo. ` 
+      : `High-end professional food photography of: ${config.dishName || 'Dish'}. `;
+    
+    visualPrompt += `Setting: ${prompt}. Lighting: ${config.lightingStyle}. Depth of field: ${config.focusStyle}. `;
+    
+    if (config.mode === 'MENU') {
+      visualPrompt += "Clean presentation, absolute NO TEXT, NO LOGOS, NO WATERMARKS.";
+    } else {
+      visualPrompt += `Commercial style. ${config.dishName ? `Product name visible: ${config.dishName}.` : ''} Style: ${config.textStyle}.`;
+    }
 
-    const refinementMsg = config.refinementPrompt ? `ADJUSTMENT: ${config.refinementPrompt}.` : "";
+    if (config.refinementPrompt) {
+      visualPrompt += ` REFINEMENT: ${config.refinementPrompt}.`;
+    }
 
     if (base64Image) {
       parts.push({ 
@@ -101,14 +117,9 @@ export const generateFoodImage = async (
           mimeType: 'image/png' 
         } 
       });
-      parts.push({ 
-        text: `Studio transformation of this food. ${refinementMsg} Style: ${prompt}. Lighting: ${config.lightingStyle}. ${textConstraint} Aspect: ${config.aspectRatio}.` 
-      });
-    } else {
-      parts.push({ 
-        text: `Realistic professional food photo: ${config.dishName}. ${refinementMsg} Scene: ${prompt}. Lighting: ${config.lightingStyle}. ${textConstraint} Aspect: ${config.aspectRatio}.` 
-      });
     }
+    
+    parts.push({ text: visualPrompt });
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
