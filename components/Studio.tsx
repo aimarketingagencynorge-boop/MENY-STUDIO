@@ -31,6 +31,7 @@ export const Studio: React.FC = () => {
   const [menuText, setMenuText] = useState('');
   const [parsedDishes, setParsedDishes] = useState<MenuDishState[]>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,9 +60,9 @@ export const Studio: React.FC = () => {
   const handleParseMenu = async () => {
     if (!menuText.trim()) return;
     setIsParsing(true);
+    setErrorMessage(null);
     try {
       const dishes = await parseMenuText(menuText);
-      console.log("Otrzymane dania z AI:", dishes);
       
       if (dishes && Array.isArray(dishes) && dishes.length > 0) {
         setParsedDishes(dishes.map(d => ({ 
@@ -71,11 +72,11 @@ export const Studio: React.FC = () => {
           refinementPrompt: '' 
         })));
       } else {
-        alert("Model AI nie rozpoznał żadnych pozycji menu. Upewnij się, że tekst zawiera nazwy dań.");
+        setErrorMessage("AI nie znalazło żadnych dań w tekście. Spróbuj wkleić listę bardziej czytelnie.");
       }
-    } catch (e) {
-      console.error("Błąd parsowania:", e);
-      alert("Wystąpił błąd podczas analizy menu. Sprawdź połączenie lub klucz API.");
+    } catch (e: any) {
+      console.error("Studio Error:", e);
+      setErrorMessage(e.message || "Wystąpił błąd podczas analizy menu.");
     } finally {
       setIsParsing(false);
     }
@@ -150,13 +151,13 @@ export const Studio: React.FC = () => {
             <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">Metoda Wejścia</label>
             <div className="grid grid-cols-2 gap-2 bg-white/5 p-1 rounded-2xl border border-white/5">
               <button 
-                onClick={() => setInputSource('MENU')}
+                onClick={() => { setInputSource('MENU'); setErrorMessage(null); }}
                 className={`py-3 px-2 text-[10px] font-black rounded-xl transition-all ${inputSource === 'MENU' ? 'bg-orange-600 text-white' : 'text-white/40 hover:text-white'}`}
               >
                 MENU
               </button>
               <button 
-                onClick={() => setInputSource('PHOTO')}
+                onClick={() => { setInputSource('PHOTO'); setErrorMessage(null); }}
                 className={`py-3 px-2 text-[10px] font-black rounded-xl transition-all ${inputSource === 'PHOTO' ? 'bg-orange-600 text-white' : 'text-white/40 hover:text-white'}`}
               >
                 ZDJĘCIE
@@ -196,18 +197,18 @@ export const Studio: React.FC = () => {
              <div>
                <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Oświetlenie</label>
                <select value={lightingStyle} onChange={(e) => setLightingStyle(e.target.value)} className="w-full p-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white outline-none">
-                 <option value="Studyjne Miękkie" className="bg-black">Studyjne Miękkie</option>
-                 <option value="Naturalne Słoneczne" className="bg-black">Naturalne Słoneczne</option>
-                 <option value="Nastrojowe / Ciemne" className="bg-black">Nastrojowe / Ciemne</option>
-                 <option value="Neonowe / Urban" className="bg-black">Neonowe / Urban</option>
+                 <option value="Studyjne Miękkie" className="bg-black text-white">Studyjne Miękkie</option>
+                 <option value="Naturalne Słoneczne" className="bg-black text-white">Naturalne Słoneczne</option>
+                 <option value="Nastrojowe / Ciemne" className="bg-black text-white">Nastrojowe / Ciemne</option>
+                 <option value="Neonowe / Urban" className="bg-black text-white">Neonowe / Urban</option>
                </select>
              </div>
              <div>
                <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Ostrość</label>
                <select value={focusStyle} onChange={(e) => setFocusStyle(e.target.value)} className="w-full p-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white outline-none">
-                 <option value="Rozmyte tło (Bokeh)" className="bg-black">Bokeh (Portret)</option>
-                 <option value="Ostre (Wszystko widoczne)" className="bg-black">Deep Focus</option>
-                 <option value="Makro / Detal" className="bg-black">Makro</option>
+                 <option value="Rozmyte tło (Bokeh)" className="bg-black text-white">Bokeh (Portret)</option>
+                 <option value="Ostre (Wszystko widoczne)" className="bg-black text-white">Deep Focus</option>
+                 <option value="Makro / Detal" className="bg-black text-white">Makro</option>
                </select>
              </div>
           </div>
@@ -216,17 +217,17 @@ export const Studio: React.FC = () => {
             <div>
               <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Kąt</label>
               <select value={angle} onChange={(e) => setAngle(e.target.value as any)} className="w-full p-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white outline-none">
-                {ANGLES.map(a => <option key={a.id} value={a.id} className="bg-black">{a.label}</option>)}
+                {ANGLES.map(a => <option key={a.id} value={a.id} className="bg-black text-white">{a.label}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Format</label>
               <select value={aspect} onChange={(e) => setAspect(e.target.value as any)} className="w-full p-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white outline-none">
-                <option value={AspectRatio.SQUARE_1_1} className="bg-black">1:1 Square</option>
-                <option value={AspectRatio.PORTRAIT_3_4} className="bg-black">3:4 Portrait</option>
-                <option value={AspectRatio.LANDSCAPE_4_3} className="bg-black">4:3 Landscape</option>
-                <option value={AspectRatio.STORY_9_16} className="bg-black">9:16 Story</option>
-                <option value={AspectRatio.CINEMA_16_9} className="bg-black">16:9 Cinema</option>
+                <option value={AspectRatio.SQUARE_1_1} className="bg-black text-white">1:1 Square</option>
+                <option value={AspectRatio.PORTRAIT_3_4} className="bg-black text-white">3:4 Portrait</option>
+                <option value={AspectRatio.LANDSCAPE_4_3} className="bg-black text-white">4:3 Landscape</option>
+                <option value={AspectRatio.STORY_9_16} className="bg-black text-white">9:16 Story</option>
+                <option value={AspectRatio.CINEMA_16_9} className="bg-black text-white">16:9 Cinema</option>
               </select>
             </div>
           </div>
@@ -271,11 +272,18 @@ export const Studio: React.FC = () => {
                 </div>
                 <h2 className="text-4xl font-black text-white mb-6 tracking-tighter uppercase italic text-center">Analiza Karty Menu</h2>
                 <textarea 
-                  className="w-full h-64 p-8 bg-black/40 border border-white/10 rounded-[40px] text-white text-sm focus:ring-2 focus:ring-orange-600 outline-none transition resize-none mb-10 shadow-inner font-medium"
+                  className="w-full h-64 p-8 bg-black/40 border border-white/10 rounded-[40px] text-white text-sm focus:ring-2 focus:ring-orange-600 outline-none transition resize-none mb-6 shadow-inner font-medium"
                   placeholder="Wklej menu, np:&#10;Burger Klasyk - 100% wołowina, pikle, sos - 39 zł"
                   value={menuText}
                   onChange={(e) => setMenuText(e.target.value)}
                 />
+                
+                {errorMessage && (
+                  <div className="w-full p-4 mb-6 bg-red-600/20 border border-red-600/40 rounded-2xl text-red-400 text-xs font-bold text-center uppercase tracking-widest animate-pulse">
+                    ⚠️ {errorMessage}
+                  </div>
+                )}
+
                 <button 
                   onClick={handleParseMenu}
                   disabled={isParsing || !menuText.trim()}
@@ -291,7 +299,7 @@ export const Studio: React.FC = () => {
                     <h2 className="text-5xl font-black text-white tracking-tighter uppercase italic mb-2">Produkty do Wygenerowania</h2>
                     <p className="text-orange-500 font-black text-xs uppercase tracking-[0.3em]">Status: {mode} Mode Active</p>
                   </div>
-                  <button onClick={() => setParsedDishes([])} className="px-8 py-3 bg-white/5 text-white/40 font-black rounded-2xl border border-white/5 hover:bg-white/10 transition uppercase text-[10px] tracking-widest">Zmień Menu</button>
+                  <button onClick={() => { setParsedDishes([]); setErrorMessage(null); }} className="px-8 py-3 bg-white/5 text-white/40 font-black rounded-2xl border border-white/5 hover:bg-white/10 transition uppercase text-[10px] tracking-widest">Zmień Menu</button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
