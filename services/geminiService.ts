@@ -57,6 +57,8 @@ export const generateFoodImage = async (
     includePrice?: boolean;
     textStyle?: string;
     refinementPrompt?: string;
+    lightingStyle?: string;
+    focusStyle?: string;
   }
 ): Promise<string | null> => {
   const ai = getAI();
@@ -66,22 +68,24 @@ export const generateFoodImage = async (
     
     let textConstraint = "";
     if (config.mode === 'MENU') {
-      textConstraint = "ABSOLUTNY ZAKAZ dodawania jakichkolwiek napisów, tekstów, logo czy znaków wodnych na obrazie. Obraz musi zawierać wyłącznie produkt spożywczy i tło.";
+      textConstraint = "ABSOLUTNY ZAKAZ dodawania jakichkolwiek napisów, tekstów, logo czy znaków wodnych. Obraz musi zawierać wyłącznie czysty produkt i tło.";
     } else if (config.mode === 'SOCIAL') {
       const textToRender = [];
       if (config.includeName && config.dishName) textToRender.push(`nazwę: "${config.dishName}"`);
       if (config.includePrice && config.dishPrice) textToRender.push(`cenę: "${config.dishPrice}"`);
       
       if (textToRender.length > 0) {
-        textConstraint = `Nałóż na obraz estetyczny napis zawierający ${textToRender.join(" oraz ")}. Styl napisu: ${config.textStyle || 'nowoczesny, elegancki'}. Napis powinien być stylowo zintegrowany z grafiką social media.`;
+        textConstraint = `Nałóż na obraz estetyczny napis zawierający ${textToRender.join(" oraz ")}. Styl napisu: ${config.textStyle || 'modern'}. Napis musi być częścią grafiki reklamowej.`;
       } else {
-        textConstraint = "Nie dodawaj żadnych napisów ani tekstów na obrazie.";
+        textConstraint = "Nie dodawaj żadnych napisów ani tekstów.";
       }
     }
 
-    const refinementPart = config.refinementPrompt ? ` DODATKOWE INSTRUKCJE: ${config.refinementPrompt}.` : "";
+    const technicalDetails = `Oświetlenie: ${config.lightingStyle || 'Naturalne'}. Głębia ostrości: ${config.focusStyle || 'Standard'}.`;
+    const refinement = config.refinementPrompt ? `\nZADANIE EDYCJI OBRAZU - WPROWADŹ ZMIANY: ${config.refinementPrompt}.` : "";
 
     if (base64Image) {
+      // PRZYPADEK EDYCJI / REGENERACJI Z POPRAWKĄ
       parts.push({ 
         inlineData: { 
           data: base64Image.includes(',') ? base64Image.split(',')[1] : base64Image, 
@@ -89,11 +93,12 @@ export const generateFoodImage = async (
         } 
       });
       parts.push({ 
-        text: `Użyj tego zdjęcia jako bazy. Zmień tło na styl: ${prompt}. ${textConstraint}${refinementPart} Zachowaj realizm potrawy i profesjonalne oświetlenie. Proporcje: ${config.aspectRatio}.` 
+        text: `Potraktuj dołączone zdjęcie jako bazę do edycji. ZMODYFIKUJ JE według instrukcji: ${refinement}. Zmień tło na styl: ${prompt}. ${textConstraint} ${technicalDetails} Zachowaj spójność wyglądu głównego dania, chyba że instrukcja mówi inaczej. Proporcje: ${config.aspectRatio}.` 
       });
     } else {
+      // NOWA GENERACJA
       parts.push({ 
-        text: `Stwórz profesjonalne zdjęcie reklamowe produktu: "${config.dishName}". Stylistyka: ${prompt}. ${textConstraint}${refinementPart} Produkt w centrum, oświetlenie studyjne. Proporcje: ${config.aspectRatio}.` 
+        text: `Stwórz profesjonalne zdjęcie reklamowe produktu gastronomicznego: "${config.dishName}". Styl: ${prompt}. ${textConstraint} ${technicalDetails} Produkt w centrum, kompozycja profesjonalna. Proporcje: ${config.aspectRatio}.` 
       });
     }
 
@@ -115,7 +120,7 @@ export const generateFoodImage = async (
       }
     }
     
-    throw new Error("Brak obrazu w odpowiedzi");
+    throw new Error("Brak obrazu");
   } catch (error) {
     console.error("Błąd generowania AI:", error);
     return null;
