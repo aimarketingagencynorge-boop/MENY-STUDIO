@@ -4,9 +4,6 @@ import { ParsedDish } from "../types";
 
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
-/**
- * Parsuje surowy tekst menu na listę obiektów potraw.
- */
 export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
   const ai = getAI();
   try {
@@ -42,9 +39,6 @@ export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
   }
 };
 
-/**
- * Generuje zdjęcie dania z opcjonalnym tekstem i poprawkami.
- */
 export const generateFoodImage = async (
   base64Image: string | null,
   prompt: string,
@@ -68,24 +62,23 @@ export const generateFoodImage = async (
     
     let textConstraint = "";
     if (config.mode === 'MENU') {
-      textConstraint = "ABSOLUTNY ZAKAZ dodawania jakichkolwiek napisów, tekstów, logo czy znaków wodnych. Obraz musi zawierać wyłącznie czysty produkt i tło.";
-    } else if (config.mode === 'SOCIAL') {
-      const textToRender = [];
-      if (config.includeName && config.dishName) textToRender.push(`nazwę: "${config.dishName}"`);
-      if (config.includePrice && config.dishPrice) textToRender.push(`cenę: "${config.dishPrice}"`);
-      
-      if (textToRender.length > 0) {
-        textConstraint = `Nałóż na obraz estetyczny napis zawierający ${textToRender.join(" oraz ")}. Styl napisu: ${config.textStyle || 'modern'}. Napis musi być częścią grafiki reklamowej.`;
-      } else {
-        textConstraint = "Nie dodawaj żadnych napisów ani tekstów.";
-      }
+      textConstraint = "ZASADA: Absolutny zakaz tekstów i znaków wodnych. Tylko produkt i tło.";
+    } else {
+      const texts = [];
+      if (config.includeName && config.dishName) texts.push(`nazwa: ${config.dishName}`);
+      if (config.includePrice && config.dishPrice) texts.push(`cena: ${config.dishPrice}`);
+      textConstraint = texts.length > 0 
+        ? `ZADANIE: Dodaj na obrazku czytelny tekst: ${texts.join(", ")}. Styl napisu: ${config.textStyle}.` 
+        : "Nie dodawaj żadnych tekstów.";
     }
 
-    const technicalDetails = `Oświetlenie: ${config.lightingStyle || 'Naturalne'}. Głębia ostrości: ${config.focusStyle || 'Standard'}.`;
-    const refinement = config.refinementPrompt ? `\nZADANIE EDYCJI OBRAZU - WPROWADŹ ZMIANY: ${config.refinementPrompt}.` : "";
+    // Znacznie mocniejszy prompt dla edycji (refinement)
+    const refinementInstruction = config.refinementPrompt 
+      ? `\nKRYTYCZNE ZMIANY DO WPROWADZENIA (Zastosuj natychmiast): ${config.refinementPrompt}.` 
+      : "";
 
     if (base64Image) {
-      // PRZYPADEK EDYCJI / REGENERACJI Z POPRAWKĄ
+      // Edycja istniejącego obrazu
       parts.push({ 
         inlineData: { 
           data: base64Image.includes(',') ? base64Image.split(',')[1] : base64Image, 
@@ -93,12 +86,12 @@ export const generateFoodImage = async (
         } 
       });
       parts.push({ 
-        text: `Potraktuj dołączone zdjęcie jako bazę do edycji. ZMODYFIKUJ JE według instrukcji: ${refinement}. Zmień tło na styl: ${prompt}. ${textConstraint} ${technicalDetails} Zachowaj spójność wyglądu głównego dania, chyba że instrukcja mówi inaczej. Proporcje: ${config.aspectRatio}.` 
+        text: `Jesteś profesjonalnym retuszerem żywności. ZMODYFIKUJ to zdjęcie dokładnie według tych wytycznych: ${refinementInstruction} Nowe tło i scena: ${prompt}. ${textConstraint} Oświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}. Zachowaj proporcje ${config.aspectRatio}.` 
       });
     } else {
-      // NOWA GENERACJA
+      // Nowa generacja
       parts.push({ 
-        text: `Stwórz profesjonalne zdjęcie reklamowe produktu gastronomicznego: "${config.dishName}". Styl: ${prompt}. ${textConstraint} ${technicalDetails} Produkt w centrum, kompozycja profesjonalna. Proporcje: ${config.aspectRatio}.` 
+        text: `Stwórz od zera profesjonalne zdjęcie produktu: ${config.dishName}. Kontekst: ${prompt}. ${textConstraint} Oświetlenie: ${config.lightingStyle}. ${refinementInstruction} Styl: Fotografia reklamowa premium. Proporcje: ${config.aspectRatio}.` 
       });
     }
 
@@ -106,9 +99,7 @@ export const generateFoodImage = async (
       model: 'gemini-2.5-flash-image',
       contents: { parts },
       config: {
-        imageConfig: {
-          aspectRatio: config.aspectRatio as any || "1:1"
-        }
+        imageConfig: { aspectRatio: config.aspectRatio as any }
       }
     });
 
@@ -119,10 +110,9 @@ export const generateFoodImage = async (
         }
       }
     }
-    
-    throw new Error("Brak obrazu");
+    return null;
   } catch (error) {
-    console.error("Błąd generowania AI:", error);
+    console.error("AI Error:", error);
     return null;
   }
 };

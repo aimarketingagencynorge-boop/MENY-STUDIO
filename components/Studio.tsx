@@ -17,7 +17,6 @@ export const Studio: React.FC = () => {
   const [aspect, setAspect] = useState<AspectRatio>(AspectRatio.SQUARE_1_1);
   const [bgPack, setBgPack] = useState(BACKGROUND_PACKS[0].id);
   
-  // Pro Settings
   const [includeName, setIncludeName] = useState(false);
   const [includePrice, setIncludePrice] = useState(false);
   const [textStyle, setTextStyle] = useState('Minimalistyczny Badge');
@@ -25,12 +24,10 @@ export const Studio: React.FC = () => {
   const [focusStyle, setFocusStyle] = useState('Rozmyte tło (Bokeh)');
   const [globalRefinement, setGlobalRefinement] = useState('');
 
-  // State for single photo
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [singleResult, setSingleResult] = useState<string | null>(null);
   const [isSingleGenerating, setIsSingleGenerating] = useState(false);
 
-  // State for menu mode
   const [menuText, setMenuText] = useState('');
   const [parsedDishes, setParsedDishes] = useState<MenuDishState[]>([]);
   const [isParsing, setIsParsing] = useState(false);
@@ -87,7 +84,7 @@ export const Studio: React.FC = () => {
     const prompt = `Styl: ${selectedPack?.name}. Kąt: ${angle}. Tło: ${selectedPack?.tag}.`;
 
     try {
-      // KLUCZOWE: Jeśli obraz już istnieje, przekazujemy go jako bazę do "poprawki"
+      // KLUCZOWE: Przy regeneracji przekazujemy OSTATNI wygenerowany obraz jako bazę
       const res = await generateFoodImage(dish.generatedImage || null, prompt, {
         aspectRatio: aspect,
         mode,
@@ -114,9 +111,10 @@ export const Studio: React.FC = () => {
     const prompt = `Styl: ${selectedPack?.name}. Kąt: ${angle}. Tło: ${selectedPack?.tag}.`;
     
     try {
-      // Regeneracja na bazie poprzedniego wyniku lub oryginału
-      const base = singleResult || uploadedImage;
-      const res = await generateFoodImage(base, prompt, { 
+      // Wysyłamy singleResult jeśli istnieje, inaczej uploadedImage. 
+      // To pozwala AI "widzieć" co ma poprawić.
+      const baseForAI = singleResult || uploadedImage;
+      const res = await generateFoodImage(baseForAI, prompt, { 
         aspectRatio: aspect, 
         mode,
         includeName: mode === GenerationMode.SOCIAL && includeName,
@@ -126,7 +124,7 @@ export const Studio: React.FC = () => {
         lightingStyle,
         focusStyle
       });
-      setSingleResult(res);
+      if (res) setSingleResult(res);
     } catch (e) {
       console.error(e);
     } finally {
@@ -136,7 +134,6 @@ export const Studio: React.FC = () => {
 
   return (
     <div className="flex h-[calc(100vh-80px)] bg-[#0A0A0B] overflow-hidden">
-      {/* Sidebar - Studio Pro */}
       <div className="w-80 bg-black/40 border-r border-white/5 flex flex-col p-6 overflow-y-auto custom-scrollbar z-20">
         <h2 className="text-xl font-black text-white mb-8 flex items-center gap-2 tracking-tighter uppercase italic">
           <div className="w-1.5 h-6 bg-orange-600 rounded-full"></div>
@@ -144,7 +141,6 @@ export const Studio: React.FC = () => {
         </h2>
 
         <div className="space-y-6">
-          {/* Wejście */}
           <div>
             <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">Metoda Wejścia</label>
             <div className="grid grid-cols-2 gap-2 bg-white/5 p-1 rounded-2xl border border-white/5">
@@ -163,7 +159,6 @@ export const Studio: React.FC = () => {
             </div>
           </div>
 
-          {/* Publikacja */}
           <div>
             <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">Przeznaczenie</label>
             <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5">
@@ -182,7 +177,6 @@ export const Studio: React.FC = () => {
             </div>
           </div>
 
-          {/* Opcje Social */}
           {mode === GenerationMode.SOCIAL && (
             <div className="p-4 bg-orange-600/5 rounded-2xl border border-orange-600/10 space-y-4 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center justify-between">
@@ -205,18 +199,16 @@ export const Studio: React.FC = () => {
             </div>
           )}
 
-          {/* AI Refinement */}
           <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
              <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] block">Korektor AI (Feedback)</label>
              <textarea 
                value={globalRefinement}
                onChange={(e) => setGlobalRefinement(e.target.value)}
-               placeholder="Np. 'usuń cytrynę', 'dodaj więcej dymu'..."
+               placeholder="Np. 'usuń cytrynę', 'zmień tło na jasne'..."
                className="w-full h-20 bg-black/40 border border-white/10 rounded-xl p-3 text-[10px] text-white outline-none focus:border-orange-500/50 transition resize-none"
              />
           </div>
 
-          {/* Techniczne */}
           <div className="space-y-4">
              <div>
                <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Oświetlenie</label>
@@ -254,7 +246,6 @@ export const Studio: React.FC = () => {
             </div>
           </div>
 
-          {/* Motywy */}
           <div>
             <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">Motyw Tła</label>
             <div className="grid grid-cols-2 gap-2">
@@ -285,7 +276,6 @@ export const Studio: React.FC = () => {
         )}
       </div>
 
-      {/* Main Experience */}
       <div className="flex-grow overflow-y-auto p-12 flex flex-col items-center bg-[radial-gradient(circle_at_center,_#1A1A1E_0%,_#0A0A0B_100%)]">
         {inputSource === 'MENU' ? (
           <div className="w-full max-w-6xl">
@@ -384,7 +374,6 @@ export const Studio: React.FC = () => {
             )}
           </div>
         ) : (
-          /* Single Photo Mode */
           <div className="w-full max-w-5xl animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row gap-12">
               <div className="flex-1 space-y-4">
@@ -410,7 +399,7 @@ export const Studio: React.FC = () => {
             </div>
             {singleResult && (
               <div className="mt-12 flex justify-center gap-6">
-                 <button onClick={() => setSingleResult(null)} className="px-12 py-4 bg-white/5 text-white/40 font-black rounded-2xl border border-white/5 hover:bg-white/10 transition uppercase text-xs tracking-widest">Reset</button>
+                 <button onClick={() => { setSingleResult(null); setGlobalRefinement(''); }} className="px-12 py-4 bg-white/5 text-white/40 font-black rounded-2xl border border-white/5 hover:bg-white/10 transition uppercase text-xs tracking-widest">Reset</button>
                  <button onClick={() => downloadImage(singleResult, 'studio-ai-shot')} className="px-16 py-4 bg-orange-600 text-white font-black rounded-2xl shadow-2xl hover:bg-orange-700 transition active:scale-95 uppercase text-xs tracking-widest">Pobierz</button>
               </div>
             )}
