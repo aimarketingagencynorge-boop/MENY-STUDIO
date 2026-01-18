@@ -2,17 +2,18 @@
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { ParsedDish } from "../types";
 
-const getAI = () => {
-  const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || "";
-  return new GoogleGenAI({ apiKey });
-};
+// Inicjalizacja klienta zgodnie z wytycznymi - użycie bezpośrednio process.env.API_KEY
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
 export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
   const ai = getAI();
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Wyodrębnij nazwy dań, ich opisy i ceny z poniższego tekstu menu. Zwróć dane w formacie czystego JSON.
+      contents: `Przeanalizuj poniższy tekst menu restauracji i wyodrębnij z niego listę dań. 
+      Dla każdego dania stwórz obiekt z polami: id (unikalny ciąg znaków), name (pełna nazwa dania), description (krótki opis, jeśli dostępny), price (cena jako tekst, np. "39 zł").
+      ZWRÓĆ WYŁĄCZNIE CZYSTY JSON BEZ ŻADNYCH DODATKOWYCH WYJAŚNIEŃ CZY BLOKÓW MARKDOWN.
+      
       Tekst menu:
       ${text}`,
       config: {
@@ -22,10 +23,10 @@ export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
           items: {
             type: Type.OBJECT,
             properties: {
-              id: { type: Type.STRING },
-              name: { type: Type.STRING },
-              description: { type: Type.STRING },
-              price: { type: Type.STRING },
+              id: { type: Type.STRING, description: "Unikalny identyfikator" },
+              name: { type: Type.STRING, description: "Nazwa dania" },
+              description: { type: Type.STRING, description: "Opis składników lub dania" },
+              price: { type: Type.STRING, description: "Cena potrawy" },
             },
             required: ["id", "name"]
           }
@@ -33,12 +34,12 @@ export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
       }
     });
     
-    const jsonStr = response.text?.trim() || '[]';
-    const cleanJson = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
-    return JSON.parse(cleanJson);
+    // Użycie .text bezpośrednio z odpowiedzi
+    const jsonStr = response.text || '[]';
+    return JSON.parse(jsonStr);
   } catch (error) {
-    console.error("Błąd parsowania menu:", error);
-    return [];
+    console.error("Błąd krytyczny podczas parsowania menu:", error);
+    throw error;
   }
 };
 
@@ -65,7 +66,7 @@ export const generateFoodImage = async (
     
     let textConstraint = "";
     if (config.mode === 'MENU') {
-      textConstraint = "ZASADA: Absolutny zakaz dodawania tekstów, znaków wodnych i napisów na obrazie.";
+      textConstraint = "ZASADA: Absolutny zakaz dodawania tekstów, znaków wodnych i napisów na obrazie. Tylko czysta fotografia jedzenia.";
     } else {
       const texts = [];
       if (config.includeName && config.dishName) texts.push(`nazwa: ${config.dishName}`);
@@ -76,11 +77,10 @@ export const generateFoodImage = async (
     }
 
     const refinementMsg = config.refinementPrompt 
-      ? `\nZMODYFIKUJ OBRAZ WEDŁUG TYCH INSTRUKCJI: ${config.refinementPrompt}. Skup się na tych zmianach, zachowując esencję dania.` 
+      ? `\nKOREKTA: ${config.refinementPrompt}.` 
       : "";
 
     if (base64Image) {
-      // PROCES EDYCJI (Image-to-Image)
       parts.push({ 
         inlineData: { 
           data: base64Image.includes(',') ? base64Image.split(',')[1] : base64Image, 
@@ -88,12 +88,11 @@ export const generateFoodImage = async (
         } 
       });
       parts.push({ 
-        text: `Traktuj to zdjęcie jako punkt wyjścia. ${refinementMsg}\nZmień otoczenie na styl: ${prompt}. Oświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}. ${textConstraint}\nFormat: ${config.aspectRatio}. Zachowaj wysoką jakość i realizm jedzenia.` 
+        text: `ZMODYFIKUJ ZDJĘCIE: ${refinementMsg}\nNowa scena: ${prompt}. Oświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}. ${textConstraint}\nFormat: ${config.aspectRatio}.` 
       });
     } else {
-      // NOWA GENERACJA
       parts.push({ 
-        text: `Stwórz profesjonalne zdjęcie reklamowe potrawy: ${config.dishName || 'Danie kuchni premium'}. ${refinementMsg}\nStylistyka tła: ${prompt}. ${textConstraint}\nOświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}.\nProporcje: ${config.aspectRatio}. Fotografia produktowa najwyższej klasy.` 
+        text: `FOTOGRAFIA PRODUKTOWA: ${config.dishName}. ${refinementMsg}\nScena: ${prompt}. ${textConstraint}\nOświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}.\nProporcje: ${config.aspectRatio}.` 
       });
     }
 

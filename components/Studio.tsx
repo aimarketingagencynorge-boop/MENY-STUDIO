@@ -61,14 +61,21 @@ export const Studio: React.FC = () => {
     setIsParsing(true);
     try {
       const dishes = await parseMenuText(menuText);
-      setParsedDishes(dishes.map(d => ({ 
-        ...d, 
-        generatedImage: null, 
-        isGenerating: false,
-        refinementPrompt: '' 
-      })));
+      console.log("Otrzymane dania z AI:", dishes);
+      
+      if (dishes && Array.isArray(dishes) && dishes.length > 0) {
+        setParsedDishes(dishes.map(d => ({ 
+          ...d, 
+          generatedImage: null, 
+          isGenerating: false,
+          refinementPrompt: '' 
+        })));
+      } else {
+        alert("Model AI nie rozpoznał żadnych pozycji menu. Upewnij się, że tekst zawiera nazwy dań.");
+      }
     } catch (e) {
-      console.error(e);
+      console.error("Błąd parsowania:", e);
+      alert("Wystąpił błąd podczas analizy menu. Sprawdź połączenie lub klucz API.");
     } finally {
       setIsParsing(false);
     }
@@ -84,7 +91,6 @@ export const Studio: React.FC = () => {
     const prompt = `Styl: ${selectedPack?.name}. Kąt: ${angle}. Tło: ${selectedPack?.tag}.`;
 
     try {
-      // Przekazujemy ostatni wynik do edycji (lub null dla nowej generacji)
       const res = await generateFoodImage(dish.generatedImage || null, prompt, {
         aspectRatio: aspect,
         mode,
@@ -112,7 +118,6 @@ export const Studio: React.FC = () => {
     const prompt = `Styl: ${selectedPack?.name}. Kąt: ${angle}. Tło: ${selectedPack?.tag}.`;
     
     try {
-      // Przekazujemy singleResult jeśli chcemy poprawić, inaczej uploadedImage
       const sourceImage = singleResult || uploadedImage;
       const res = await generateFoodImage(sourceImage, prompt, { 
         aspectRatio: aspect, 
