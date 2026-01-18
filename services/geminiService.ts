@@ -2,26 +2,27 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedDish } from "../types";
 
 /**
- * Inicjalizacja klienta Google GenAI.
- * Klucz API musi znajdować się w zmiennej środowiskowej API_KEY.
+ * Pobiera klucz API i inicjalizuje klienta.
  */
 const getAiClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    console.error("DEBUG: Klucz process.env.API_KEY nie został wykryty w środowisku przeglądarki.");
+    console.error("KRYSZTYCZNY BŁĄD: process.env.API_KEY jest pusty! Sprawdź czy redeploy na Vercel został wykonany.");
+    throw new Error("Brak klucza API. Upewnij się, że dodałeś API_KEY w Vercel i wykonałeś Redeploy.");
   }
-  return new GoogleGenAI({ apiKey: apiKey || "" });
+  return new GoogleGenAI({ apiKey });
 };
 
 export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
-  const ai = getAiClient();
-  
   try {
+    const ai = getAiClient();
+    console.log("Gemini: Rozpoczynam parsowanie menu...");
+    
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Jesteś profesjonalnym analitykiem menu restauracyjnych. 
-      Wyodrębnij wszystkie potrawy z poniższego tekstu. 
-      Zwróć wynik jako tablicę JSON z polami: id, name, description, price.
+      Wyodrębnij wszystkie potrawy z poniższego tekstu i zwróć je jako tablicę JSON. 
+      Pola: id (string), name (string), description (string), price (string).
       
       Tekst menu:
       ${text}`,
@@ -44,15 +45,17 @@ export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
     });
     
     const jsonStr = response.text;
-    if (!jsonStr) return [];
+    if (!jsonStr) throw new Error("Otrzymano pustą odpowiedź z AI.");
     
     return JSON.parse(jsonStr.trim());
   } catch (error: any) {
-    console.error("Błąd parseMenuText:", error);
+    console.error("Szczegóły błędu API Gemini:", error);
+    
     if (error.status === 403 || error.message?.includes("API key")) {
-      throw new Error("Klucz API jest nieprawidłowy lub nie został jeszcze załadowany (spróbuj redeploy na Vercel).");
+      throw new Error("Nieprawidłowy klucz API. Sprawdź czy klucz w Vercel jest poprawny i czy projekt ma włączone billingi/limity.");
     }
-    throw new Error("Wystąpił problem podczas analizy menu. Sprawdź połączenie.");
+    
+    throw new Error(`Błąd AI: ${error.message || "Błąd połączenia z serwerem"}`);
   }
 };
 
@@ -72,16 +75,15 @@ export const generateFoodImage = async (
     focusStyle?: string;
   }
 ): Promise<string | null> => {
-  const ai = getAiClient();
-  
   try {
+    const ai = getAiClient();
     const parts: any[] = [];
     
     let textConstraint = config.mode === 'MENU' 
-      ? "Absolutny zakaz napisów i logo. Czyste zdjęcie produktu." 
-      : `Możesz dodać tekst: ${config.dishName || ''}. Styl: ${config.textStyle || 'premium'}.`;
+      ? "No text, no labels, no watermarks. Pure food photography." 
+      : `You can add text: ${config.dishName || ''}. Style: ${config.textStyle || 'premium'}.`;
 
-    const refinementMsg = config.refinementPrompt ? `KOREKTA: ${config.refinementPrompt}.` : "";
+    const refinementMsg = config.refinementPrompt ? `ADJUSTMENT: ${config.refinementPrompt}.` : "";
 
     if (base64Image) {
       parts.push({ 
@@ -91,11 +93,11 @@ export const generateFoodImage = async (
         } 
       });
       parts.push({ 
-        text: `Przetwórz to zdjęcie dania. ${refinementMsg} Zastosuj tło: ${prompt}. Oświetlenie: ${config.lightingStyle}. ${textConstraint} Proporcje: ${config.aspectRatio}.` 
+        text: `Enhance this food photo. ${refinementMsg} Scene: ${prompt}. Lighting: ${config.lightingStyle}. ${textConstraint} Aspect: ${config.aspectRatio}.` 
       });
     } else {
       parts.push({ 
-        text: `Wygeneruj realistyczne zdjęcie dania: ${config.dishName}. ${refinementMsg} Styl tła: ${prompt}. Oświetlenie: ${config.lightingStyle}. ${textConstraint} Proporcje: ${config.aspectRatio}.` 
+        text: `Create realistic food photography of: ${config.dishName}. ${refinementMsg} Style: ${prompt}. Lighting: ${config.lightingStyle}. ${textConstraint} Aspect: ${config.aspectRatio}.` 
       });
     }
 
@@ -118,7 +120,7 @@ export const generateFoodImage = async (
     }
     return null;
   } catch (error: any) {
-    console.error("Błąd generateFoodImage:", error);
+    console.error("Błąd generowania obrazu:", error);
     return null;
   }
 };
