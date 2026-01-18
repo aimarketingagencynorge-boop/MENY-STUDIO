@@ -2,7 +2,10 @@
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { ParsedDish } from "../types";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const getAI = () => {
+  const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || "";
+  return new GoogleGenAI({ apiKey });
+};
 
 export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
   const ai = getAI();
@@ -62,36 +65,35 @@ export const generateFoodImage = async (
     
     let textConstraint = "";
     if (config.mode === 'MENU') {
-      textConstraint = "ZASADA: Absolutny zakaz tekstów i znaków wodnych. Tylko produkt i tło.";
+      textConstraint = "ZASADA: Absolutny zakaz dodawania tekstów, znaków wodnych i napisów na obrazie.";
     } else {
       const texts = [];
       if (config.includeName && config.dishName) texts.push(`nazwa: ${config.dishName}`);
       if (config.includePrice && config.dishPrice) texts.push(`cena: ${config.dishPrice}`);
       textConstraint = texts.length > 0 
-        ? `ZADANIE: Dodaj na obrazku czytelny tekst: ${texts.join(", ")}. Styl napisu: ${config.textStyle}.` 
-        : "Nie dodawaj żadnych tekstów.";
+        ? `ZADANIE: Dodaj na obrazku czytelny i stylowy napis: ${texts.join(", ")}. Styl napisu: ${config.textStyle}.` 
+        : "Nie dodawaj tekstów.";
     }
 
-    // Znacznie mocniejszy prompt dla edycji (refinement)
-    const refinementInstruction = config.refinementPrompt 
-      ? `\nKRYTYCZNE ZMIANY DO WPROWADZENIA (Zastosuj natychmiast): ${config.refinementPrompt}.` 
+    const refinementMsg = config.refinementPrompt 
+      ? `\nZMODYFIKUJ OBRAZ WEDŁUG TYCH INSTRUKCJI: ${config.refinementPrompt}. Skup się na tych zmianach, zachowując esencję dania.` 
       : "";
 
     if (base64Image) {
-      // Edycja istniejącego obrazu
+      // PROCES EDYCJI (Image-to-Image)
       parts.push({ 
         inlineData: { 
           data: base64Image.includes(',') ? base64Image.split(',')[1] : base64Image, 
-          mimeType: 'image/jpeg' 
+          mimeType: 'image/png' 
         } 
       });
       parts.push({ 
-        text: `Jesteś profesjonalnym retuszerem żywności. ZMODYFIKUJ to zdjęcie dokładnie według tych wytycznych: ${refinementInstruction} Nowe tło i scena: ${prompt}. ${textConstraint} Oświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}. Zachowaj proporcje ${config.aspectRatio}.` 
+        text: `Traktuj to zdjęcie jako punkt wyjścia. ${refinementMsg}\nZmień otoczenie na styl: ${prompt}. Oświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}. ${textConstraint}\nFormat: ${config.aspectRatio}. Zachowaj wysoką jakość i realizm jedzenia.` 
       });
     } else {
-      // Nowa generacja
+      // NOWA GENERACJA
       parts.push({ 
-        text: `Stwórz od zera profesjonalne zdjęcie produktu: ${config.dishName}. Kontekst: ${prompt}. ${textConstraint} Oświetlenie: ${config.lightingStyle}. ${refinementInstruction} Styl: Fotografia reklamowa premium. Proporcje: ${config.aspectRatio}.` 
+        text: `Stwórz profesjonalne zdjęcie reklamowe potrawy: ${config.dishName || 'Danie kuchni premium'}. ${refinementMsg}\nStylistyka tła: ${prompt}. ${textConstraint}\nOświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}.\nProporcje: ${config.aspectRatio}. Fotografia produktowa najwyższej klasy.` 
       });
     }
 
@@ -99,7 +101,9 @@ export const generateFoodImage = async (
       model: 'gemini-2.5-flash-image',
       contents: { parts },
       config: {
-        imageConfig: { aspectRatio: config.aspectRatio as any }
+        imageConfig: { 
+          aspectRatio: config.aspectRatio as any 
+        }
       }
     });
 
@@ -112,7 +116,7 @@ export const generateFoodImage = async (
     }
     return null;
   } catch (error) {
-    console.error("AI Error:", error);
+    console.error("AI Generation Error:", error);
     return null;
   }
 };

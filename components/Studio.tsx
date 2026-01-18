@@ -15,7 +15,7 @@ export const Studio: React.FC = () => {
   const [mode, setMode] = useState<GenerationMode>(GenerationMode.MENU);
   const [angle, setAngle] = useState<PhotoAngle>(PhotoAngle.HERO_45);
   const [aspect, setAspect] = useState<AspectRatio>(AspectRatio.SQUARE_1_1);
-  const [bgPack, setBgPack] = useState(BACKGROUND_PACKS[0].id);
+  const [bgPack, setBgPack] = useState(BACKGROUND_PACKS[0]?.id || 'min-white');
   
   const [includeName, setIncludeName] = useState(false);
   const [includePrice, setIncludePrice] = useState(false);
@@ -84,7 +84,7 @@ export const Studio: React.FC = () => {
     const prompt = `Styl: ${selectedPack?.name}. Kąt: ${angle}. Tło: ${selectedPack?.tag}.`;
 
     try {
-      // KLUCZOWE: Przy regeneracji przekazujemy OSTATNI wygenerowany obraz jako bazę
+      // Przekazujemy ostatni wynik do edycji (lub null dla nowej generacji)
       const res = await generateFoodImage(dish.generatedImage || null, prompt, {
         aspectRatio: aspect,
         mode,
@@ -99,6 +99,7 @@ export const Studio: React.FC = () => {
       });
       setParsedDishes(prev => prev.map(d => d.id === dishId ? { ...d, generatedImage: res, isGenerating: false } : d));
     } catch (err) {
+      console.error(err);
       setParsedDishes(prev => prev.map(d => d.id === dishId ? { ...d, isGenerating: false } : d));
     }
   };
@@ -111,10 +112,9 @@ export const Studio: React.FC = () => {
     const prompt = `Styl: ${selectedPack?.name}. Kąt: ${angle}. Tło: ${selectedPack?.tag}.`;
     
     try {
-      // Wysyłamy singleResult jeśli istnieje, inaczej uploadedImage. 
-      // To pozwala AI "widzieć" co ma poprawić.
-      const baseForAI = singleResult || uploadedImage;
-      const res = await generateFoodImage(baseForAI, prompt, { 
+      // Przekazujemy singleResult jeśli chcemy poprawić, inaczej uploadedImage
+      const sourceImage = singleResult || uploadedImage;
+      const res = await generateFoodImage(sourceImage, prompt, { 
         aspectRatio: aspect, 
         mode,
         includeName: mode === GenerationMode.SOCIAL && includeName,
@@ -177,34 +177,12 @@ export const Studio: React.FC = () => {
             </div>
           </div>
 
-          {mode === GenerationMode.SOCIAL && (
-            <div className="p-4 bg-orange-600/5 rounded-2xl border border-orange-600/10 space-y-4 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white/70">Nazwa</span>
-                <button onClick={() => setIncludeName(!includeName)} className={`w-8 h-4 rounded-full relative transition ${includeName ? 'bg-orange-600' : 'bg-white/10'}`}>
-                   <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${includeName ? 'right-0.5' : 'left-0.5'}`}></div>
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white/70">Cena</span>
-                <button onClick={() => setIncludePrice(!includePrice)} className={`w-8 h-4 rounded-full relative transition ${includePrice ? 'bg-orange-600' : 'bg-white/10'}`}>
-                   <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${includePrice ? 'right-0.5' : 'left-0.5'}`}></div>
-                </button>
-              </div>
-              <select value={textStyle} onChange={(e) => setTextStyle(e.target.value)} className="w-full p-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black text-white uppercase outline-none">
-                <option value="Minimalistyczny Badge" className="bg-black">Minimalistyczny Badge</option>
-                <option value="Premium Gold" className="bg-black">Premium Gold</option>
-                <option value="Street Bold" className="bg-black">Street Bold</option>
-              </select>
-            </div>
-          )}
-
           <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
              <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] block">Korektor AI (Feedback)</label>
              <textarea 
                value={globalRefinement}
                onChange={(e) => setGlobalRefinement(e.target.value)}
-               placeholder="Np. 'usuń cytrynę', 'zmień tło na jasne'..."
+               placeholder="Np. 'usuń cytrynę', 'jasne tło marmurowe', 'dodaj dym'..."
                className="w-full h-20 bg-black/40 border border-white/10 rounded-xl p-3 text-[10px] text-white outline-none focus:border-orange-500/50 transition resize-none"
              />
           </div>
@@ -240,8 +218,10 @@ export const Studio: React.FC = () => {
               <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Format</label>
               <select value={aspect} onChange={(e) => setAspect(e.target.value as any)} className="w-full p-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white outline-none">
                 <option value={AspectRatio.SQUARE_1_1} className="bg-black">1:1 Square</option>
-                <option value={AspectRatio.PORTRAIT_4_5} className="bg-black">4:5 Insta</option>
+                <option value={AspectRatio.PORTRAIT_3_4} className="bg-black">3:4 Portrait</option>
+                <option value={AspectRatio.LANDSCAPE_4_3} className="bg-black">4:3 Landscape</option>
                 <option value={AspectRatio.STORY_9_16} className="bg-black">9:16 Story</option>
+                <option value={AspectRatio.CINEMA_16_9} className="bg-black">16:9 Cinema</option>
               </select>
             </div>
           </div>
@@ -332,7 +312,7 @@ export const Studio: React.FC = () => {
                            <button 
                              onClick={() => generateForDish(dish.id)}
                              disabled={dish.isGenerating}
-                             className="w-full py-4 bg-white text-black font-black text-xs rounded-2xl hover:bg-orange-600 hover:text-white transition-all transform translate-y-4 group-hover:translate-y-0 duration-500"
+                             className="w-full py-4 bg-white text-black font-black text-xs rounded-2xl hover:bg-orange-600 hover:text-white transition-all transform translate-y-4 group-hover:translate-y-0 duration-500 shadow-2xl"
                            >
                              {dish.generatedImage ? 'RE-GENERUJ Z POPRAWKĄ' : 'GENERUJ ZDJĘCIE'}
                            </button>
@@ -350,7 +330,7 @@ export const Studio: React.FC = () => {
                              type="text"
                              value={dish.refinementPrompt || ''}
                              onChange={(e) => setParsedDishes(prev => prev.map(d => d.id === dish.id ? { ...d, refinementPrompt: e.target.value } : d))}
-                             placeholder="Np. 'zmień tło na jasne', 'usuń sałatę'..."
+                             placeholder="Np. 'usuń sałatę', 'dodaj dym', 'zmień tło'..."
                              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[10px] text-white focus:border-orange-500/50 outline-none"
                            />
                         </div>

@@ -23,9 +23,10 @@ export enum PhotoAngle {
 
 export enum AspectRatio {
   SQUARE_1_1 = '1:1',
-  PORTRAIT_4_5 = '4:5',
-  LANDSCAPE_16_9 = '16:9',
-  STORY_9_16 = '9:16'
+  PORTRAIT_3_4 = '3:4',
+  LANDSCAPE_4_3 = '4:3',
+  STORY_9_16 = '9:16',
+  CINEMA_16_9 = '16:9'
 }
 
 export interface ParsedDish {
