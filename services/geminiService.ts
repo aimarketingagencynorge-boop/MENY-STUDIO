@@ -1,44 +1,58 @@
 
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedDish } from "../types";
 
-// Inicjalizacja klienta zgodnie z wytycznymi - użycie bezpośrednio process.env.API_KEY
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
-
+// Always initialize GoogleGenAI with the API_KEY from process.env.API_KEY as per guidelines.
 export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Przeanalizuj poniższy tekst menu restauracji i wyodrębnij z niego listę dań. 
-      Dla każdego dania stwórz obiekt z polami: id (unikalny ciąg znaków), name (pełna nazwa dania), description (krótki opis, jeśli dostępny), price (cena jako tekst, np. "39 zł").
-      ZWRÓĆ WYŁĄCZNIE CZYSTY JSON BEZ ŻADNYCH DODATKOWYCH WYJAŚNIEŃ CZY BLOKÓW MARKDOWN.
-      
+      contents: `Jesteś ekspertem od menu restauracyjnych. Przeanalizuj poniższy tekst i wyodrębnij z niego listę dań.
       Tekst menu:
       ${text}`,
       config: {
         responseMimeType: "application/json",
+        // Using responseSchema is the recommended way to get structured JSON output.
         responseSchema: {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
             properties: {
-              id: { type: Type.STRING, description: "Unikalny identyfikator" },
-              name: { type: Type.STRING, description: "Nazwa dania" },
-              description: { type: Type.STRING, description: "Opis składników lub dania" },
-              price: { type: Type.STRING, description: "Cena potrawy" },
+              id: {
+                type: Type.STRING,
+                description: 'Unique short ID for the dish.',
+              },
+              name: {
+                type: Type.STRING,
+                description: 'Full name of the dish.',
+              },
+              description: {
+                type: Type.STRING,
+                description: 'Short description of ingredients.',
+              },
+              price: {
+                type: Type.STRING,
+                description: 'Price of the dish with currency.',
+              },
             },
-            required: ["id", "name"]
-          }
-        }
+            required: ["id", "name"],
+            propertyOrdering: ["id", "name", "description", "price"],
+          },
+        },
       }
     });
     
-    // Użycie .text bezpośrednio z odpowiedzi
-    const jsonStr = response.text || '[]';
-    return JSON.parse(jsonStr);
-  } catch (error) {
-    console.error("Błąd krytyczny podczas parsowania menu:", error);
+    // Access response.text property directly.
+    const jsonStr = response.text;
+    if (!jsonStr) return [];
+    
+    return JSON.parse(jsonStr.trim());
+  } catch (error: any) {
+    console.error("Błąd parsowania menu:", error);
+    if (error.message?.includes("API key not valid")) {
+      throw new Error("Nieprawidłowy klucz API. Skontaktuj się z administratorem.");
+    }
     throw error;
   }
 };
@@ -59,26 +73,24 @@ export const generateFoodImage = async (
     focusStyle?: string;
   }
 ): Promise<string | null> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
     const parts: any[] = [];
     
     let textConstraint = "";
     if (config.mode === 'MENU') {
-      textConstraint = "ZASADA: Absolutny zakaz dodawania tekstów, znaków wodnych i napisów na obrazie. Tylko czysta fotografia jedzenia.";
+      textConstraint = "ZASADA: Absolutny zakaz dodawania tekstów i znaków wodnych. Tylko czysta fotografia jedzenia.";
     } else {
       const texts = [];
-      if (config.includeName && config.dishName) texts.push(`nazwa: ${config.dishName}`);
-      if (config.includePrice && config.dishPrice) texts.push(`cena: ${config.dishPrice}`);
+      if (config.includeName && config.dishName) texts.push(config.dishName);
+      if (config.includePrice && config.dishPrice) texts.push(config.dishPrice);
       textConstraint = texts.length > 0 
-        ? `ZADANIE: Dodaj na obrazku czytelny i stylowy napis: ${texts.join(", ")}. Styl napisu: ${config.textStyle}.` 
-        : "Nie dodawaj tekstów.";
+        ? `ZADANIE: Dodaj na obrazku stylowy napis: ${texts.join(" - ")}. Styl: ${config.textStyle}.` 
+        : "";
     }
 
-    const refinementMsg = config.refinementPrompt 
-      ? `\nKOREKTA: ${config.refinementPrompt}.` 
-      : "";
+    const refinementMsg = config.refinementPrompt ? `\nKOREKTA: ${config.refinementPrompt}.` : "";
 
     if (base64Image) {
       parts.push({ 
@@ -88,7 +100,7 @@ export const generateFoodImage = async (
         } 
       });
       parts.push({ 
-        text: `ZMODYFIKUJ ZDJĘCIE: ${refinementMsg}\nNowa scena: ${prompt}. Oświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}. ${textConstraint}\nFormat: ${config.aspectRatio}.` 
+        text: `ZMODYFIKUJ TO ZDJĘCIE: ${refinementMsg}\nStyl: ${prompt}. Oświetlenie: ${config.lightingStyle}. Ostrość: ${config.focusStyle}. ${textConstraint}\nFormat: ${config.aspectRatio}.` 
       });
     } else {
       parts.push({ 
@@ -96,7 +108,7 @@ export const generateFoodImage = async (
       });
     }
 
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts },
       config: {
@@ -106,6 +118,7 @@ export const generateFoodImage = async (
       }
     });
 
+    // Iterate through parts to find the image part as recommended by guidelines.
     if (response.candidates?.[0]?.content?.parts) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData?.data) {
@@ -115,7 +128,7 @@ export const generateFoodImage = async (
     }
     return null;
   } catch (error) {
-    console.error("AI Generation Error:", error);
+    console.error("AI Image Generation Error:", error);
     return null;
   }
 };
