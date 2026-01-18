@@ -3,14 +3,20 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedDish } from "../types";
 
 export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
-  // Always initialize right before use with process.env.API_KEY
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
   
-  console.log("Gemini: Rozpoczynam analizę menu...");
+  if (!apiKey) {
+    console.error("BŁĄD KRYTYCZNY: Brak klucza API_KEY w process.env.");
+    throw new Error("Brak klucza API. Upewnij się, że klucz API_KEY jest poprawnie skonfigurowany w Vercel/środowisku.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  console.log("Gemini: Rozpoczynam analizę menu (model: gemini-3-flash-preview)...");
   
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Używamy modelu Pro dla lepszego rozumienia tekstu menu
+      model: 'gemini-3-flash-preview', // Wybieramy szybszy model do zadań tekstowych
       contents: `Jesteś profesjonalnym analitykiem menu restauracyjnych. 
       Wyodrębnij wszystkie dania z poniższego tekstu. 
       Dla każdego dania stwórz obiekt z polami: 
@@ -42,22 +48,27 @@ export const parseMenuText = async (text: string): Promise<ParsedDish[]> => {
     
     const jsonStr = response.text;
     if (!jsonStr) {
-      console.warn("Gemini: Pusta odpowiedź z modelu.");
+      console.warn("Gemini: Model zwrócił pustą treść.");
       return [];
     }
     
     const parsed = JSON.parse(jsonStr.trim());
-    console.log(`Gemini: Wyodrębniono ${parsed.length} dań.`);
+    console.log(`Gemini: Wyodrębniono ${parsed.length} pozycji menu.`);
     return parsed;
   } catch (error: any) {
-    console.error("Gemini Error (parseMenuText):", error);
+    console.error("Szczegóły błędu Gemini:", error);
     
-    // Specyficzna obsługa błędów klucza API
-    if (error.message?.includes("API key not valid") || error.message?.includes("403") || error.message?.includes("401")) {
-      throw new Error("Klucz API jest nieprawidłowy lub wygasł. Sprawdź konfigurację environment variables.");
+    // Obsługa błędów autoryzacji
+    if (error.message?.includes("API key not valid") || error.status === 403 || error.status === 401) {
+      throw new Error("Klucz API jest nieprawidłowy lub nieaktywny. Sprawdź konfigurację API_KEY.");
     }
     
-    throw new Error("Wystąpił błąd podczas komunikacji z AI. Spróbuj ponownie za chwilę.");
+    // Obsługa limitów (quota)
+    if (error.message?.includes("quota") || error.status === 429) {
+      throw new Error("Przekroczono limit zapytań API (Quota). Spróbuj ponownie za chwilę.");
+    }
+
+    throw new Error(`Błąd komunikacji z AI: ${error.message || "Nieznany problem"}`);
   }
 };
 
@@ -77,7 +88,13 @@ export const generateFoodImage = async (
     focusStyle?: string;
   }
 ): Promise<string | null> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.error("Image Gen: Brak klucza API.");
+    return null;
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   try {
     const parts: any[] = [];
@@ -131,7 +148,7 @@ export const generateFoodImage = async (
     }
     return null;
   } catch (error: any) {
-    console.error("Gemini Error (generateFoodImage):", error);
+    console.error("Błąd generowania obrazu AI:", error);
     return null;
   }
 };

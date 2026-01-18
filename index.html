@@ -7,6 +7,11 @@
     <title>FoodMenu Shot Studio - Profesjonalna Fotografia AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        // Krytyczny shim dla process.env w środowisku przeglądarki
+        // Pozwala SDK Gemini na bezpieczny odczyt klucza API
+        window.process = window.process || { env: {} };
+    </script>
     <style>
         body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background-color: #0A0A0B; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
